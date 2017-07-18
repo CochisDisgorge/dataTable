@@ -109,7 +109,18 @@ var dataTable = function ( opt ) {
 	 * @type {Object}
 	 */
 	var private = {
-		numPaginatorElements: 7, // DEVELOPING - numero de elementos que contendrá el paginador
+		pag: {
+			numPagesPerElement: 5, // DEVELOPING - numero de elementos que contendrá el paginador
+			arrayRangesButtonPaginator: [],
+			currentRangeButtonPaginator: {},
+			$nav: null,
+			$listPages: null,
+			$prev: null,
+			$liPrev: null,
+			$liNext: null,
+			$paginator: null,
+			elements: []
+		}
 	};
 
 	opt.color_fila = opt.color_fila || ''
@@ -243,6 +254,97 @@ var dataTable = function ( opt ) {
 
 
 	/**
+	 * Determina la posicion del rango de Botones donde esta ubicado
+	 * el elemento [<li>]
+	 */
+	var returnIndexRangesButtonPaginator  = function( arrayRangesButtonPaginator, indexButton ) {
+		// console.log(arrayRangesButtonPaginator);
+		for ( var j in arrayRangesButtonPaginator ) 
+		{
+			var obj     = arrayRangesButtonPaginator[ j ];
+			var element = obj.element;
+			var first   = obj.first;
+			var last    = obj.last;
+
+			if ( indexButton >= first && indexButton <= last ) return element;
+		}
+
+		return -1;
+	}
+
+	var calcNumElementsRangesButtonPaginator = function ( numPages, numPagesPerElement ) {
+		// si la cantidad de elementos por pagina es
+		// mayor a la cantidad de elementos existentes en
+		// el servidor (totales), el numero de paginas siempre será = [1]
+		if ( numPagesPerElement >= numPages ) return 1;
+
+		var numElementsRangesButtonPaginator = parseInt( numPages / numPagesPerElement );
+
+		// validamos que aun exiten registros que no completan el bloque de numRows
+		// si existen agregamos una nueva pagina
+		if ( (numPages % numPagesPerElement) > 0 ) numElementsRangesButtonPaginator++;
+		return numElementsRangesButtonPaginator;
+	}
+
+	var calcArrayRangesButtonPaginator = function ( numPagesPerElement, numPages, numElementsRangesButtonPaginator ) {
+		var arr = [];
+		var first = 0, last = (numPagesPerElement - 1); // iniciamos en 0 pues lo trabajaremos como arreglos
+
+		/**
+		 * definimos la primera pagina manualmente
+		 */
+		arr.push({
+			element: 1,
+			first: first,
+			last: last
+		});
+
+		/**
+		 * le quitamos una iteracion porque la primera
+		 * pagina la definimos estaticamente, [ i = 1 ]
+		 * en el [for]
+		 */
+		for ( var i = 1; i < numElementsRangesButtonPaginator; i++ ) {
+
+			/**
+			 * Mover al siguiene elemento del rango
+			 * superior de la iteracion anterior,
+			 * ahi iniciaremos el nuevo rango
+			 */
+			first = last + 1;
+
+			/**
+			 * verificamos que sea el ultimo elemento del numero
+			 * de los rangos calculados.
+			 * si es el ultimo elemento, pondra como valor
+			 * final al tamaño máximo de los datos
+			 */
+			if ( i != (numElementsRangesButtonPaginator - 1) ) {
+
+				last = (( i + 1 ) * numPagesPerElement) - 1; // numero de pagina X numero de filas por pagina
+
+			}
+
+			else {
+
+				last = (numPages - 1);
+			}
+
+			arr.push({
+				element: (i + 1),
+				first: first,
+				last: last
+			});
+
+			// console.log('first: ' + first);
+			// console.log('last: ' + last);
+		}
+
+
+		return arr;
+	}
+
+	/**
 	 * @param  {[Integer]} numero de elementos totales del arreglo
 	 * @param  {[Integer]} numero de elementos que soporta cada pagina
 	 * @return {[void]}
@@ -317,67 +419,50 @@ var dataTable = function ( opt ) {
 
 		var numPages = calcularPaginas();
 		var ranges   = calcRangesByPage( numPages, numRows, numElements );
-		// console.log(ranges);
-
-		/**
-		 * creamos la estructura del paginador
-		 */
-		var $nav = $('<nav>');
-		var $listPages = $('<ul>').addClass('pagination pagination-md');
-
-		var $prev = $('<a href="#" aria-label="Previous">').append('<span aria-hidden="true">&laquo;</span>');
-		var $next = $('<a href="#" aria-label="Next">').append('<span aria-hidden="true">&raquo;</span>');
 
 		/**
 		 * Cantidad de botones de pagina que existen
 		 */
 		var lon = ranges.length;
 
-		$listPages.append(
-			$('<li>').append(
-				/**
-				 * evento del boton [anterior]
-				 */
-				$prev.on('click', function(event) {
-					event.preventDefault();
+		var numElementsRangesButtonPaginator = calcNumElementsRangesButtonPaginator( numPages, private.pag.numPagesPerElement );
+		var arrayRangesButtonPaginator = calcArrayRangesButtonPaginator( private.pag.numPagesPerElement, numPages, numElementsRangesButtonPaginator );
+		
+		/**
+		 * @type {[type]}
+		 */
+		private.pag.arrayRangesButtonPaginator = arrayRangesButtonPaginator;
 
-					/**
-					 * Encuentra el boton que sea un boton de pagina y este marcado como [activo]
-					 */
-					$listPages.find('[button-index=true][class*="active"]').each(function(index, el) {
-						/**
-						 * El elemento <a> es el propietario de los eventos click, asi como de los atributos
-						 * que indexan los rangos.
-						 *
-						 * obtenemos el indice de pagina que le corresponde el elemento <a>
-						 */
-						var index = $(this).children('a').attr('data-range-index');
-						// console.log(index);
+		/**
+		 * creamos la estructura del paginador
+		 */
+		var $nav = $('<nav>');
+		var $listPages = $('<ul>').addClass('pagination pagination-lg');
 
-						/**
-						 * validamos que al dar click en anterior no desbordemos
-						 * de la cantidad de botones existentes
-						 */
-						if ( index < lon && index > 0 ) {
-							index--;
-							$listPages.find('[button-index=true]').find('[data-range-index="' + index + '"]').each(function(index, el) {
-								$(this).click();
-							});
-						}
-					});
-				})
-			)
-		);
+		var $prev = $('<a href="#" aria-label="Previous">').append('<span aria-hidden="true">&laquo;</span>');
+		var $next = $('<a href="#" aria-label="Next">').append('<span aria-hidden="true">&raquo;</span>');
+		var $liPrev = $('<li>').append( $prev );
+		var $liNext = $('<li>').append( $next );
 
-		for ( var i = 0; i < lon; i++ ) {
-			var $li = $('<li>').attr('button-index', 'true');;
+		/**
+		 * centramos el paginador
+		 */
+		var $paginator =  $('<div>').addClass('text-center').append($nav);
+		
+		/**
+		 * Iteramos para crear los botones de las paginas, y los 
+		 * guardamos en la variable [private.pag]
+		 */
+		for ( var i = 0; i < lon; i++ ) 
+		{
 			var obj = ranges[ i ];
-
-			// si es la primera pagina la marcamos como activa
-			if ( obj.page == 1 ) $li.addClass('active');
-
-			$listPages.append(
-				$li.append(
+			var $li = $('<li>')
+				.attr('button-index', 'true')
+				.append(
+					/**
+					 * Creamos el elemento <a> asi como su logica
+					 * ya que será el contenedor del evento [click]
+					 */
 					$('<a href="#">')
 						.attr({
 							'data-range-index': i,
@@ -385,84 +470,207 @@ var dataTable = function ( opt ) {
 							'data-range-last': obj.range[1]
 						})
 						.text(obj.page)
+				);
 
-						/**
-						 * evento del boton paginador [1,2,3,4,5...]
-						 */
-						.on('click', function(event) {
-							event.preventDefault();
-							$this = $(this);
+			var indexRangeButtons = returnIndexRangesButtonPaginator( arrayRangesButtonPaginator, i );
+			$li.attr('index-range-buttons', indexRangeButtons);
 
-							/**
-							 * buscamos a los elementos que sean botones
-							 * con numeros (button-index) y le quitamos el efecto de
-							 * seleccionado
-							 */
-							$listPages.find('[button-index=true]').each(function(index, el) {
-								$(this).removeClass('active');
-							});
+			/**
+			 * si es la primera pagina la marcamos como activa
+			 */
+			if ( obj.page == 1 ) $li.addClass('active');
 
-							/**
-							 * agregamos el estado de activo al elemento
-							 * que le demos click
-							 */
-							$this.parent('li').addClass('active');
-
-							/**
-							 * llamamos el callback del dataTable y le pasamos como
-							 *  parametro [ indiceinicial, indicefinal ]
-							 */
-							callbackPaginator( $this.attr('data-range-first'), $this.attr('data-range-last') );
-						})
-				)
-			);
-
-			IDS.paginator.pages.push( $li );
+			/**
+			 * Agregamos el elementos a la variable privada
+			 * para tener acceso global
+			 */
+			private.pag.elements.push( $li );
 		}
 
-		$listPages.append(
-			$('<li>').append(
+		/**
+		 * Almacenamos nuestros elementos en la variable [private.pag] 
+		 * para renderizarlos de manera dinamica
+		 */
+		private.pag.$nav       = $nav;
+		private.pag.$listPages = $listPages;
+		private.pag.$prev      = $prev;
+		private.pag.$next      = $next;
+		private.pag.$liPrev    = $liPrev;
+		private.pag.$liNext    = $liNext;
+		private.pag.$paginator = $paginator;
+
+		renderPageButtons( 1 );
+	}
+
+	var renderPageButtons = function ( indexRangeButtons ) 
+	{
+		var $nav        = private.pag.$nav;
+		var $listPages  = private.pag.$listPages;
+		var $prev       = private.pag.$prev;
+		var $next       = private.pag.$next;
+		var $liPrev     = private.pag.$liPrev;
+		var $liNext     = private.pag.$liNext;
+		var $paginator  = private.pag.$paginator;
+		var elements    = private.pag.elements;
+		var arrayRangesButtonPaginator = private.pag.arrayRangesButtonPaginator;
+
+		// if ( arrayRanges.length == 0 ) {
+		// 	console.error('Function [renderPageButtons]: Arreglo de rangos de botonos no definidos');
+		// 	return;
+		// }
+
+		/**
+		 * Eliminamos todos los elementos
+		 * para renderizar el nuevo rango
+		 */
+		$listPages.empty();
+
+		/**
+		 * evento del boton [Prev]
+		 */
+		$prev.on('click', function(event) 
+		{
+			event.preventDefault();
+
+			/**
+			 * Encuentra el boton que sea un boton de pagina y este marcado como [activo]
+			 */
+			$listPages.find('[button-index=true][class*="active"]').each(function(index, el) 
+			{
 				/**
-				 * evento del boton [siguiente]
+				 * El elemento <a> es el propietario de los eventos click, asi como de los atributos
+				 * que indexan los rangos.
+				 *
+				 * obtenemos el indice de pagina que le corresponde el elemento <a>
 				 */
-				$next.on('click', function(event) {
-					event.preventDefault();
+				var index = parseInt($(this).children('a').attr('data-range-index'));
+
+				/**
+				 * investigamos a que numero de segmento de paginacion le corresponde
+				 * el boton actual y el boton siguiente
+				 */
+				var currentPage = returnIndexRangesButtonPaginator ( arrayRangesButtonPaginator, index );
+				var prevElementPage = returnIndexRangesButtonPaginator ( arrayRangesButtonPaginator, ( index - 1 ) );
+
+				if ( prevElementPage != -1 ) 
+				{
+					// console.log( "(index - 1): " + (index - 1) + ' index: ' + index );
+					// console.log( "prevElementPage: " + prevElementPage + ' currentPage: ' + currentPage );
+					
+					if ( currentPage != prevElementPage ) renderPageButtons( prevElementPage );
+
+					index--;
+					$listPages.find('[button-index=true]').find('[data-range-index="' + index + '"]').each(function(i, el) {
+						$(this).click();
+					});
+				}
+			});
+		})
+
+		/**
+		 * 
+		 */
+		$liPrev.append( $prev );
+
+		$listPages.append( $liPrev ); // renderiza boton Prev
+
+		/**
+		 * Renderizar el rango de paginas definidas
+		 * el indice del rango de pagina se encuentra
+		 * en el atributo [<li index-range-buttons="1">]
+		 */
+		var lon = elements.length;
+		for ( var i = 0; i < lon; i++ )
+		{
+			var $elem = elements[ i ];
+			var index = $elem.attr('index-range-buttons');
+			if ( index == indexRangeButtons ) 
+			{
+				$elem.find('a').each(function(index, el) 
+				{
+					/**
+					 * evento del boton paginador [1,2,3,4,5...]
+					 */
+					$( this ).on('click', function(event) 
+					{
+						event.preventDefault();
+						$this = $(this);
+
+						/**
+						 * buscamos a los elementos que sean botones
+						 * con numeros (button-index) y le quitamos el efecto de
+						 * seleccionado
+						 */
+						$listPages.find('[button-index=true]').each(function(index, el) {
+							$(this).removeClass('active');
+						});
+
+						/**
+						 * agregamos el estado de activo al elemento
+						 * que le demos click
+						 */
+						$this.parent('li').addClass('active');
+
+						/**
+						 * llamamos el callback del dataTable y le pasamos como
+						 *  parametro [ indiceinicial, indicefinal ]
+						 */
+						callbackPaginator( $this.attr('data-range-first'), $this.attr('data-range-last') );
+					})
+				});
+
+				$listPages.append( $elem );
+			}
+		}
+
+		$liNext = $('<li>').append(
+			/**
+			 * evento del boton [siguiente]
+			 */
+			$next.on('click', function(event) 
+			{
+				event.preventDefault();
+
+				/**
+				 * Encuentra el boton que sea un boton de pagina y este marcado como [activo]
+				 */
+				$listPages.find('[button-index=true][class*="active"]').each(function(index, el) {
+					/**
+					 * El elemento <a> es el propietario de los eventos click, asi como de los atributos
+					 * que indexan los rangos.
+					 *
+					 * obtenemos el indice de pagina que le corresponde el elemento <a>
+					 */
+					var index = parseInt($(this).children('a').attr('data-range-index'));
 
 					/**
-					 * Encuentra el boton que sea un boton de pagina y este marcado como [activo]
+					 * investigamos a que numero de segmento de paginacion le corresponde
+					 * el boton actual y el boton siguiente
 					 */
-					$listPages.find('[button-index=true][class*="active"]').each(function(index, el) {
-						/**
-						 * El elemento <a> es el propietario de los eventos click, asi como de los atributos
-						 * que indexan los rangos.
-						 *
-						 * obtenemos el indice de pagina que le corresponde el elemento <a>
-						 */
-						var index = $(this).children('a').attr('data-range-index');
-						// console.log(index);
+					var currentPage = returnIndexRangesButtonPaginator ( arrayRangesButtonPaginator, index );
+					var nextElementPage = returnIndexRangesButtonPaginator ( arrayRangesButtonPaginator, ( index + 1 ) );
 
-						/**
-						 * validamos que al dar click en siguiente no desbordemos
-						 * de la cantidad de botones existentes
-						 */
-						if ( index >= 0 && index < (lon -1 )  ) {
-							index++;
-							$listPages.find('[button-index=true]').find('[data-range-index="' + index + '"]').each(function(index, el) {
-								$(this).click();
-							});
-						}
-					});
-				})
-			)
+					if ( nextElementPage != -1 ) 
+					{
+						// console.log( 'index: ' + index + " (index + 1): " + (index + 1) );
+						// console.log( 'currentPage: ' + currentPage + " nextElementPage: " + nextElementPage );
+						
+						if ( currentPage != nextElementPage ) renderPageButtons( nextElementPage );
+
+						index++;
+						$listPages.find('[button-index=true]').find('[data-range-index="' + index + '"]').each(function(i, el) {
+							$(this).click();
+						});
+					}
+				});
+			})
 		);
+
+
+
+		$listPages.append( $liNext ); // renderiza boton Next
 		$nav.append($listPages);
-
-		IDS.$content.append(
-			/**
-			 * centramos el paginador
-			 */
-			$('<div>').addClass('text-center').append($nav)
-		);
+		IDS.$content.append($paginator);
 	}
 
 	var update_table = function ( arr ) 

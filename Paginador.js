@@ -174,7 +174,7 @@ var main = function () {
             head: 'CURP,FOLIO,ORDEN PRELACION,NOMBRE,RFC,GRUPO DESEMPEÑO,ESTADO,TIPO CONCURSO,NIVEL EDUCATIVO,SUBSISTEMA,CCT,TIPO EVALUACION,TIPO SOSTENIMIENTO,FUNCIÓN,REGIÓN',
             campo: "curp,folio,orden_prelacion,nombre,rfc,grupo_desempeno,estado,tipo_concurso,nivel_educativo,subsistema,cct,tipo_evaluacion,tipo_sostenimiento,funcion,region",
             numFilas: 10,
-            numElementos: 600,
+            numElementos: 160,
             callbackPaginator: function ( indiceinicial, indicefinal ) {
                 var arr = simuladorAjax( data1, indiceinicial, indicefinal );
                 table.updateTable( arr );
